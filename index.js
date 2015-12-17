@@ -3,8 +3,8 @@ var async = require('async');
 var ArcCrud = require('arcgis-crud');
 var crud = ArcCrud.featureLayer;
 
-var targURL = 'http://gisweb.gcheb.cap.ru/arcgis/rest/services/cheb/ai_oks_mkd_12_2015/MapServer/0';
-var srcURL = 'http://gisweb.gcheb.cap.ru/arcgis/rest/services/cheb/oks_mkd/MapServer/0';
+var targURL = 'http://gisweb.gcheb.cap.ru/arcgis/rest/services/cheb/ai_oks_mkd_12_2015/FeatureServer/0';
+var srcURL = 'http://gisweb.gcheb.cap.ru/arcgis/rest/services/cheb/oks_mkd/FeatureServer/0';
 //"адрес='г. Чебоксары, б-р Олега Волкова, д.3'"
 // crud.connect(
 // 	srcURL,
@@ -25,7 +25,7 @@ crud.connect(
 			// targObj.query({ returnIdsOnly: false, where: "OBJECTID=" + 1000 }, function (err, targData) {
 			// 	console.log(targData.features);
 			// });
-			targObj.query({ returnIdsOnly: true, where: "1=1" }, function (err, targData) {
+			targObj.query({ returnIdsOnly: true, where: "OBJECTID=" + 341 }, function (err, targData) {
 				if (err) {
 					console.error(err.message);
 				} else {
@@ -36,7 +36,7 @@ crud.connect(
 							if (err1) {
 								console.log(err1.message);
 							} else {
-								var totalCmpare = 0;
+								var totalCompare = 0;
 								async.parallel(
 									_.map(
 										targData.objectIds,
@@ -47,13 +47,42 @@ crud.connect(
 													var address = targData.features[0].attributes["адрес"];
 													// console.log(id, targData.features[0].attributes["адрес"]);
 													srcObj.query(
-														{ returnIdsOnly: true, where: 'адрес="' + address + '"' },
-														function (err, compare) {
-															console.log(id, targData.features[0].attributes["адрес"], compare);
-															if (compare) {
-																totalCmpare ++;
+														{ returnIdsOnly: false, where: "адрес='" + address + "'"},
+														function (err, srcData) {
+															var attrSrc = srcData.features[0].attributes;
+															// console.log('new:', id, 'address:', address, 'old:', attrSrc.OBJECTID);
+															if (srcData.features.length) {
+																totalCompare ++;
+																srcObj.attachmentInfos(
+																	attrSrc.OBJECTID,
+																	function (err, resp, body) {
+																		var attachInf = JSON.parse(body);
+																		if (attachInf.attachmentInfos.length) {
+																			var attachObj = attachInf.attachmentInfos[0];
+																			// console.log(attachObj);
+																			var imgPath = srcURL +
+																				'/' +
+																				attrSrc.OBJECTID +
+																				'/attachments/' +
+																				attachObj.id
+																			;
+																			targObj.addAttachmentUrl(
+																				id,
+																				imgPath,
+																				function (err2) {
+																					if (err2) {
+																						console.log('error add atachment', attachObj.id, 'to', id, 'from', attrSrc.OBJECTID);
+																					}
+																					// console.log(id, attrSrc.OBJECTID, imgPath);
+																					done();
+																				}
+																			);
+																		}
+																		// done();
+																	}
+																);
 															}
-															done();
+															//done();
 														}
 													);
 												});
@@ -64,7 +93,7 @@ crud.connect(
 										srcObj.query({ returnIdsOnly: true, where: "1=1" }, function (err, srcData) {
 											console.log('old', srcData.objectIds.length);
 											console.log('new', targData.objectIds.length);
-											console.log('compare', totalCmpare);
+											console.log('compare', totalCompare);
 										});
 
 									}
